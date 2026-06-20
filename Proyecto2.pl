@@ -1,8 +1,8 @@
-:- dynamic robotPosition/2.
-:- dynamic targetBoxPosition/2.
-:- dynamic blockingBoxPosition/2.
+:- dynamic robot/2.
+:- dynamic caja_objetivo/2.
+:- dynamic caja_bloqueo/2.
 
-% 1) Direcciones y Cálculos de Coordenadas
+% Parte 0: Direcciones y Cálculos de Coordenadas
 
 % dirección(Nombre, DeltaFila, DeltaColumna)
 direction(u, -1, 0).
@@ -14,7 +14,7 @@ addCoordinates((Row, Column), (DeltaRow, DeltaColumn), (NewRow, NewColumn)) :-
 	NewRow is Row + DeltaRow,
 	NewColumn is Column + DeltaColumn.
 
-% 2) Inicialización del Tablero
+% Parte 1: Inicialización del Tablero
 
 % Verifica que las coordenadas estén en el rango [0,5]
 isWithinBounds((Row, Column)) :-
@@ -30,71 +30,90 @@ areAllWithinBounds([Head | Tail]) :-
 % Verifica que todas las coordenadas en una lista sean únicas
 areAllUnique([]).
 areAllUnique([Head | Tail]) :-
-	\+ member(Head, Tail),  % \+ es el operador de negación (Gracia a deux que esto existe)
+	\+ member(Head, Tail),  % \+ es el operador de negación
 	areAllUnique(Tail).
 
-% Auxiliar para agregar hechos de cajas ladillas a la base de datos dinámica
+% Auxiliar para agregar hechos de cajas bloqueo a la base de conocimientos dinámica
 assertBlockingBoxes([]).
 assertBlockingBoxes([(Row, Column) | Tail]) :-
-	assertz(blockingBoxPosition(Row, Column)), % Añade el hecho a la base de datos dinámica (machine learning moment)
+	assertz(caja_bloqueo(Row, Column)), % Añade el hecho a la base de conocimientos dinámica
 	assertBlockingBoxes(Tail).
 
-% Predicado principal para inicializar el estado del tablero (no shit sherlock)
-initializeWarehouse(RobotCoord, TargetCoord, BlockingBoxes) :-
+% Predicado principal para inicializar el estado del tablero
+initialBoard(RobotCoord, TargetCoord, BlockingBoxes) :-
 	% 1. Validar que todas las entidades estén dentro del tablero
 	areAllWithinBounds([RobotCoord, TargetCoord]),
 	areAllWithinBounds(BlockingBoxes),
 	areAllUnique([RobotCoord, TargetCoord | BlockingBoxes]),
 
 	% 2. Si todo es válido, limpiar la base de conocimientos anterior
-	retractall(robotPosition(_, _)),        % Borra posiciones previas del robot
-	retractall(targetBoxPosition(_, _)),    % Borra posición previa de la caja objetivo
-	retractall(blockingBoxPosition(_, _)),  % Borra todas las cajas ladillas
+	retractall(robot(_, _)),        	% Borra posiciones previas del robot
+	retractall(caja_objetivo(_, _)),    % Borra posición previa de la caja objetivo
+	retractall(caja_bloqueo(_, _)),  	% Borra todas las cajas bloqueo
 
-	% 3. Explicar que carajo hace esto
-	RobotCoord = (RobotRow, RobotColumn),                 % Descompone la tupla del robot en variables individuales
-	assertz(robotPosition(RobotRow, RobotColumn)),        % Registra la nueva posición del robot como un hecho
-	TargetCoord = (TargetRow, TargetColumn),              % Descompone la tupla de la caja objetivo
-	assertz(targetBoxPosition(TargetRow, TargetColumn)),  % Registra la nueva posición de la caja objetivo como un hecho
-	assertBlockingBoxes(BlockingBoxes).                   % Almacena cada una de las cajas ladillas individualmente
+	% 3. Registrar las nuevas posiciones en la base de conocimientos dinámica
+	RobotCoord = (RobotRow, RobotColumn),               % Descompone la tupla del robot en variables individuales
+	assertz(robot(RobotRow, RobotColumn)),        		% Registra la nueva posición del robot como un hecho
+	TargetCoord = (TargetRow, TargetColumn),            % Descompone la tupla de la caja objetivo
+	assertz(caja_objetivo(TargetRow, TargetColumn)),  	% Registra la nueva posición de la caja objetivo como un hecho
+	assertBlockingBoxes(BlockingBoxes).                 % Almacena cada una de las cajas bloqueo individualmente
 
-% 3) Validación de Movimiento y Transición de Estados
+% Parte 2: Validación de Movimiento
+
+isValidMove(state(RobotPos, TargetPos, BlockingList), Move) :- moveRobot(state(RobotPos, TargetPos, BlockingList), Move, _).
+
+% Parte 3: Ejecución de Movimiento y Transición de Estados
 
 % Caso 1: El robot se mueve a una celda vacía
-applyMovement(state(RobotPos, TargetPos, BlockingList), Move, state(NewRobotPos, TargetPos, BlockingList)) :-
+moveRobot(state(RobotPos, TargetPos, BlockingList), Move, state(NewRobotPos, TargetPos, BlockingList)) :-
+	% Validar que el estado actual es válido antes de intentar mover
+	areAllWithinBounds([RobotPos, TargetPos]),
+	areAllWithinBounds(BlockingList),
+	areAllUnique([RobotPos, TargetPos | BlockingList]),
+	% Continuar con la lógica de movimiento
 	direction(Move, DeltaRow, DeltaColumn),                          % Obtiene el desplazamiento asociado al movimiento
 	addCoordinates(RobotPos, (DeltaRow, DeltaColumn), NewRobotPos),  % Calcula la nueva posición del robot
 	isWithinBounds(NewRobotPos),                                     % Verifica que la nueva posición esté dentro del tablero
 	NewRobotPos \= TargetPos,                                        % Se asegura de que no haya una caja objetivo en esa celda
-	\+ member(NewRobotPos, BlockingList).                            % Verifica que no haya una caja ladilla en esa posición
+	\+ member(NewRobotPos, BlockingList), !.                         % Verifica que no haya una caja bloqueo en esa posición
 
 % Caso 2: El robot empuja la Caja Objetivo
-applyMovement(state(RobotPos, TargetPos, BlockingList), Move, state(TargetPos, NewTargetPos, BlockingList)) :-
+moveRobot(state(RobotPos, TargetPos, BlockingList), Move, state(TargetPos, NewTargetPos, BlockingList)) :-
+	% Validar que el estado actual es válido antes de intentar mover
+	areAllWithinBounds([RobotPos, TargetPos]),
+	areAllWithinBounds(BlockingList),
+	areAllUnique([RobotPos, TargetPos | BlockingList]),
+	% Continuar con la lógica de movimiento
 	direction(Move, DeltaRow, DeltaColumn),                            % Obtiene el desplazamiento del movimiento
 	addCoordinates(RobotPos, (DeltaRow, DeltaColumn), TargetPos),      % El robot debe estar en la posición actual de la caja
 	addCoordinates(TargetPos, (DeltaRow, DeltaColumn), NewTargetPos),  % Calcula la nueva posición de la caja tras el empuje
 	isWithinBounds(NewTargetPos),                                      % Verifica que la caja no salga del tablero
-	\+ member(NewTargetPos, BlockingList).                             % Se asegura que no se empuje la caja hacia otra caja ladilla (como jodió esto)
+	\+ member(NewTargetPos, BlockingList), !.                          % Se asegura que no se empuje la caja hacia otra caja bloqueo
 
-% Caso 3: El robot empuja una Caja Ladilla
-applyMovement(state(RobotPos, TargetPos, BlockingList), Move, state(NewRobotPos, TargetPos, NewBlockingList)) :-
-	direction(Move, DeltaRow, DeltaColumn),                                  % Obtiene el desplazamiento del movimiento
-	addCoordinates(RobotPos, (DeltaRow, DeltaColumn), NewRobotPos),          % Calcula a dónde se mueve el robot
-	isWithinBounds(NewRobotPos),                                             % Verifica límites para el robot
-	member(NewRobotPos, BlockingList),                                       % Confirma que efectivamente hay una caja ladilla ahí
-	addCoordinates(NewRobotPos, (DeltaRow, DeltaColumn), PushedBoxPos),      % Calcula la nueva posición de la caja ladilla
-	isWithinBounds(PushedBoxPos),                                            % Verifica que la caja ladilla no salga del tablero
-	PushedBoxPos \= TargetPos,                                               % No se puede empujar hacia donde está la caja objetivo
-	\+ member(PushedBoxPos, BlockingList),                                   % No se puede empujar hacia donde hay otra caja ladilla
-	replaceInList(NewRobotPos, PushedBoxPos, BlockingList, NewBlockingList). % Actualiza la lista de posiciones de cajas
+% Caso 3: El robot empuja una Caja bloqueo
+moveRobot(state(RobotPos, TargetPos, BlockingList), Move, state(NewRobotPos, TargetPos, NewBlockingList)) :-
+	% Validar que el estado actual es válido antes de intentar mover
+	areAllWithinBounds([RobotPos, TargetPos]),
+	areAllWithinBounds(BlockingList),
+	areAllUnique([RobotPos, TargetPos | BlockingList]),
+	% Continuar con la lógica de movimiento
+	direction(Move, DeltaRow, DeltaColumn),                                  	% Obtiene el desplazamiento del movimiento
+	addCoordinates(RobotPos, (DeltaRow, DeltaColumn), NewRobotPos),          	% Calcula a dónde se mueve el robot
+	isWithinBounds(NewRobotPos),                                             	% Verifica límites para el robot
+	member(NewRobotPos, BlockingList),                                       	% Confirma que efectivamente hay una caja bloqueo ahí
+	addCoordinates(NewRobotPos, (DeltaRow, DeltaColumn), PushedBoxPos),      	% Calcula la nueva posición de la caja bloqueo
+	isWithinBounds(PushedBoxPos),                                            	% Verifica que la caja bloqueo no salga del tablero
+	PushedBoxPos \= TargetPos,                                               	% No se puede empujar hacia donde está la caja objetivo
+	\+ member(PushedBoxPos, BlockingList),                                   	% No se puede empujar hacia donde hay otra caja bloqueo
+	replaceInList(NewRobotPos, PushedBoxPos, BlockingList, NewBlockingList), !. % Actualiza la lista de posiciones de cajas
 
-% Vaina auxiliar para actualizar la posición de una caja en la lista
+% Actualizar la posición de una caja en la lista
 replaceInList(Old, New, [Old | Tail], [New | Tail]).                % Si el primer elemento es el buscado, lo reemplaza
 replaceInList(Old, New, [Head | Tail], [Head | RefactoredTail]) :-  % Si no, mantiene la cabeza
 	Head \= Old,                                                    % Verifica que no sea el elemento a cambiar
 	replaceInList(Old, New, Tail, RefactoredTail).                  % Sigue buscando en el resto de la lista
 
-% 4) Lógica de Búsqueda (BFS)
+% Parte 4: Lógica de Búsqueda (BFS) (Solución)
 
 % Normaliza el estado para el control de visitados
 standardizeState(state(RobotPos, TargetPos, BlockingList), state(RobotPos, TargetPos, SortedBlockingList)) :-
@@ -107,7 +126,7 @@ solveWarehouse(StartState, Solution) :-
 	reverse(ReversedSolution, Solution).                                     % Al final invierte el camino para que vaya de Inicio -> Fin
 
 % Si la cabeza de la cola llegó a la meta, retorna el camino
-breadthFirstSearch([[state(_, (5, 5), _), Path] | _], _, Path).
+breadthFirstSearch([[state(_, (5, 5), _), Path] | _], _, Path) :- !.
 
 % Paso recursivo de la búsqueda en anchura (magia negra)
 breadthFirstSearch([[CurrentState, Path] | RemainingQueue], Visited, FinalSolution) :-
@@ -115,7 +134,7 @@ breadthFirstSearch([[CurrentState, Path] | RemainingQueue], Visited, FinalSoluti
 		[NextStateCanon, [Move | Path]],                             % Estructura del nuevo nodo: [NuevoEstado, NuevoCamino]
 		(
 			direction(Move, _, _),                                   % Intenta con cada dirección posible
-			applyMovement(CurrentState, Move, NextState),            % Aplica el movimiento según las reglas anteriores
+			moveRobot(CurrentState, Move, NextState),            	 % Aplica el movimiento según las reglas anteriores
 			standardizeState(NextState, NextStateCanon),             % Normaliza el nuevo estado
 			\+ member(NextStateCanon, Visited)                       % Solo continúa si el estado no ha sido visitado antes
 		),
