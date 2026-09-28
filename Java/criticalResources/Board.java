@@ -161,74 +161,49 @@ public class Board{
     }
 
     /**
-     * Encuentra una celda vacía en el interior del tablero (excluyendo los bordes) y devuelve su coordenada.
-     * @param preferred La coordenada preferida para colocar el objeto.
-     * @return La coordenada de la celda vacía encontrada, o null si no hay celdas vacías en el interior.
-     */
-    private Coord findEmptyInteriorCell(Coord preferred) {
-        if (preferred != null
-                && preferred.getX() > 0
-                && preferred.getX() < size - 1
-                && preferred.getY() > 0
-                && preferred.getY() < size - 1
-                && isEmpty(preferred)) {
-            return preferred;
-        }
-
-        for (int row = 1; row < size - 1; row++) {
-            for (int column = 1; column < size - 1; column++) {
-                Coord candidate = new Coord(row, column);
-                if (isEmpty(candidate)) {
-                    return candidate;
-                }
-            }
-        }
-        return null;
-    }
-
-    /**
      * Llena una celda del tablero con un objeto (caja objetivo o caja obstáculo) y produce una entrada descripitiva en el registro.
      * @param coord La coordenada de la celda a llenar.
      * @param id El identificador del productor que está llenando la celda.
      */
     public synchronized void fillCell(Coord coord, int id){
-        long ticket = nextProducerTicket++;
+        long ticket = nextProducerTicket++; // Asigna un ticket al productor que está intentando llenar la celda
         try {
-            while (ticket != producerTurn
-                    && !isProductionFinished()
-                    && !isProductionImpossible()) {
+            // Espera hasta que sea el turno del productor con el ticket asignado, o hasta que la producción haya finalizado o sea imposible
+            while (ticket != producerTurn && !isProductionFinished() && !isProductionImpossible()) {
                 wait();
             }
 
+            // Si la producción ha finalizado o es imposible, el productor no puede llenar la celda y se notifica a los demás productores
             if (isProductionFinished() || isProductionImpossible()) {
                 if (ticket == producerTurn) {
                     producerTurn++;
                     notifyAll();
                 }
                 return;
-            }
-
-            while (!hasEmptyInteriorCell()
-                    && !isProductionFinished()
-                    && !isProductionImpossible()) {
+            } else if (!hasEmptyInteriorCell()) { // Si la producción es posible pero no hay celdas vacías en el interior del tablero, el productor debe esperar hasta que haya espacio disponible
                 logger.printLog(Event.WAIT_SAT_PROD, id, coord);
                 incrementSaturationCount();
-                wait();
+                // Espera hasta que haya al menos una celda vacía en el interior del tablero
+                while (!hasEmptyInteriorCell()) {
+                    wait();
+                }
             }
-
+            
+            // Luego de la espera si la producción ha finalizado o es imposible, el productor no puede llenar la celda y se notifica a los demás productores
             if (isProductionFinished() || isProductionImpossible()) {
                 producerTurn++;
                 notifyAll();
                 return;
             }
 
-            Coord insertionCoord = findEmptyInteriorCell(coord);
-            if (insertionCoord == null) {
+            // Si la celda seleccionada no está vacía, el productor no puede llenar la celda y se notifica a los demás productores
+            if (!isEmpty(coord)) {
                 producerTurn++;
                 notifyAll();
                 return;
             }
 
+            // Selecciona el tipo de caja a producir (caja objetivo o caja obstáculo) según la disponibilidad y actualiza los contadores correspondientes
             ObjectType box;
             if (targetBoxes[0] > 0) {
                 box = ObjectType.TARGET_BOX;
@@ -240,15 +215,16 @@ public class Board{
                 return;
             }
 
-            board[insertionCoord.getX()][insertionCoord.getY()] = box;
+            // Llena la celda con la caja seleccionada, actualiza los contadores y produce una entrada en el registro
+            board[coord.getX()][coord.getY()] = box;
             emptyCells--;
             if(box == ObjectType.TARGET_BOX){
                 targetBoxes[0]--;
                 targetBoxes[1]++;
-                logger.printLog(Event.INSERT_OBJ, id, insertionCoord);
+                logger.printLog(Event.INSERT_OBJ, id, coord);
             } else {
                 obstacleBoxes--;
-                logger.printLog(Event.INSERT_OBS, id, insertionCoord);
+                logger.printLog(Event.INSERT_OBS, id, coord);
             }
             producerTurn++;
             notifyAll();

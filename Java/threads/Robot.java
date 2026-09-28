@@ -195,7 +195,7 @@ public class Robot extends Thread{
 
                 Coord target = getNextTarget(snapshot); // Obtener la siguiente caja objetivo a empujar
 
-                if (target != null) { // Si hay una caja objetivo disponible, retornar true
+                if (target != null) { // Si hay una caja objetivo disponible, retornar su coordenada
                     return target;
                 }
 
@@ -256,7 +256,7 @@ public class Robot extends Thread{
                     position = position.move(nextMoveDirection);
                     battery--;
                     break;
-                // Si el resultado del movimiento es BLOCKED o STALE_POSITION, generar un nuevo plan de ejecución
+                // Si el resultado del movimiento es BLOCKED, generar un nuevo plan de ejecución
                 default:
                     break;
             }

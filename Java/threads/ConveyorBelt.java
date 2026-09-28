@@ -17,18 +17,6 @@ public class ConveyorBelt extends Thread{
 
     public void run(){
         while(!board.isProductionFinished() && !board.isProductionImpossible()){ // Mientras la producción sea posible
-            try {
-                Thread.sleep((long)(Math.random() * 1000)); // Esperar un tiempo aleatorio antes de intentar llenar otra celda
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return;
-            }
-
-            // Verificar si la producción ha terminado o es imposible antes de intentar llenar otra celda
-            if (board.isProductionFinished() || board.isProductionImpossible()) {
-                break;
-            }
-
             // Generar una coordenada aleatoria dentro del tablero que no se encuentre en los bordes
             int interiorSize = board.getSize() - 2;
             Coord coord = new Coord(1 + (int) (Math.random() * interiorSize), 1 + (int) (Math.random() * interiorSize)
@@ -36,6 +24,13 @@ public class ConveyorBelt extends Thread{
 
             // Intentar llenar la celda con la coordenada generada
             board.fillCell(coord, id);
+
+            try {
+                Thread.sleep((long)(Math.random() * 1000)); // Esperar un tiempo aleatorio antes de intentar llenar otra celda
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
         }
     }
 }
