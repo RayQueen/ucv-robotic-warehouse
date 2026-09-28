@@ -2,3 +2,6 @@
 testing-script.*
 test/*
 /lib
+
+// ignore compiled files
+*.class

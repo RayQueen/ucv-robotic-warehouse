@@ -30,14 +30,6 @@ public class Robot extends Thread{
         battery = initialBattery;
     }
 
-    public Coord getPosition(){
-        return position;
-    }
-
-    public int getBattery(){
-        return battery;
-    }
-
     /**
      * Obtiene la siguiente caja objetivo a empujar.
      * @param snapshot La instantánea del estado actual del tablero.
@@ -51,7 +43,7 @@ public class Robot extends Thread{
                 continue; // Si la caja objetivo está bloqueada, buscar otra caja objetivo
             }
             int distance = position.distanceTo(target);
-            if(distance < minDistance){
+            if(distance < minDistance){ // Si la distancia a la caja objetivo es menor que la distancia mínima encontrada hasta ahora, actualizar la distancia mínima y la mejor caja objetivo
                 minDistance = distance;
                 bestTarget = target;
             }
@@ -118,16 +110,19 @@ public class Robot extends Thread{
         return null; // No hay una dirección válida para empujar la caja objetivo
     }
 
-    private boolean canPush(
-            Snapshot snapshot,
-            Coord targetPosition,
-            Direction direction) {
-
+    /**
+     * Determina si el robot puede empujar la caja objetivo en la dirección especificada.
+     * @param snapshot La instantánea del estado actual del tablero.
+     * @param targetPosition La posición de la caja objetivo que se desea empujar.
+     * @param direction La dirección en la que se desea empujar la caja objetivo.
+     * @return true si el robot puede empujar la caja objetivo en la dirección especificada, false en caso contrario.
+     */
+    private boolean canPush(Snapshot snapshot, Coord targetPosition, Direction direction) {
         Coord destination = targetPosition.move(direction);
         Coord support = targetPosition.move(direction.opositeDirection());
 
-        return !snapshot.isBoxBlocked(targetPosition, destination)
-                && !snapshot.isBlocked(position, support);
+        return !snapshot.isBoxBlocked(targetPosition, destination) 
+            && !snapshot.isBlocked(position, support);
     }
 
     /**
@@ -150,35 +145,34 @@ public class Robot extends Thread{
      * @return La dirección en la que el robot debe moverse para acercarse a la coordenada especificada, o null si no hay una dirección válida.
      */
     public Direction chooseMoveToward(Snapshot snapshot, Coord coord, Direction lastDirection){
-        Queue<Coord> pending = new ArrayDeque<>();
-        Set<Coord> visited = new HashSet<>();
-        Map<Coord, Direction> firstMove = new HashMap<>();
+        Queue<Coord> pending = new ArrayDeque<>();          // Cola para almacenar las coordenadas pendientes de explorar
+        Set<Coord> visited = new HashSet<>();               // Conjunto para almacenar las coordenadas ya visitadas
+        Map<Coord, Direction> firstMove = new HashMap<>();  // Mapa para almacenar la primera dirección tomada desde la posición inicial hacia cada coordenada
 
-        pending.add(position);
-        visited.add(position);
+        pending.add(position); // Agregar la posición actual del robot a la cola de pendientes
+        visited.add(position); // Agregar la posición actual del robot al conjunto de visitadas
 
-        while (!pending.isEmpty()) {
-            Coord current = pending.remove();
+        while (!pending.isEmpty()) { // Mientras haya coordenadas pendientes por explorar
+            Coord current = pending.remove(); // Obtener la siguiente coordenada de la cola de pendientes
 
             for (Direction direction : Direction.values()) {
                 Coord next = current.move(direction);
 
-                if (visited.contains(next)
-                        || snapshot.isBlocked(position, next)) {
+                // Si la coordenada ya ha sido visitada o está bloqueada, continuar con la siguiente dirección
+                if (visited.contains(next) || snapshot.isBlocked(position, next)) {
                     continue;
                 }
 
-                Direction initialDirection = current.equals(position)
-                        ? direction
-                        : firstMove.get(current);
+                // Registrar la primera dirección tomada desde la posición inicial hacia la coordenada actual
+                Direction initialDirection = current.equals(position) ? direction : firstMove.get(current);
 
-                if (next.equals(coord)) {
+                if (next.equals(coord)) { // Si se ha alcanzado la coordenada deseada, devolver la primera dirección tomada desde la posición inicial
                     return initialDirection;
                 }
 
-                visited.add(next);
-                firstMove.put(next, initialDirection);
-                pending.add(next);
+                visited.add(next);                      // Marcar la coordenada como visitada
+                firstMove.put(next, initialDirection);  // Registrar la primera dirección tomada desde la posición inicial hacia la coordenada siguiente
+                pending.add(next);                      // Agregar la coordenada siguiente a la cola de pendientes para explorarla más adelante 
             }
         }
 
@@ -186,7 +180,7 @@ public class Robot extends Thread{
     }
 
     /**
-     * Espera hasta que haya una caja objetivo disponible para empujar. Si no hay cajas objetivo disponibles y la producción ha terminado, retorna false.
+     * Espera hasta que haya una caja objetivo disponible para empujar.
      * @return La coordenada de la caja objetivo disponible para empujar, o null si no hay cajas objetivo disponibles y la producción ha terminado.
      */
     private Coord waitUntilTargetAvailable() {
@@ -194,7 +188,8 @@ public class Robot extends Thread{
             while (true) {
                 snapshot = board.snapshot(); // Tomar una instantánea del estado actual del tablero
 
-                if (board.isTargetProductionFinished()) { // Si la producción ha terminado y no hay cajas objetivo disponibles, retornar false
+                // Si la producción ha terminado y no hay cajas objetivo disponibles, retornar null
+                if (board.isTargetProductionFinished()) {
                     return null;
                 }
 
@@ -204,9 +199,13 @@ public class Robot extends Thread{
                     return target;
                 }
 
-                try {
-                    board.wait(); // Esperar hasta que haya una notificación de que el estado del tablero ha cambiado (por ejemplo, un productor llenó una celda o un robot movió una caja objetivo)
-                } catch (InterruptedException e) { // Si el hilo del robot es interrumpido mientras espera, interrumpir el hilo actual y retornar false
+                if (!board.canProduceTarget()) { // Si no hay cajas objetivo disponibles y la producción es imposible, retornar null
+                    return null;
+                }
+
+                try { // Si no hay cajas objetivo disponibles, esperar hasta que un productor llene una celda con una caja objetivo
+                    board.wait();
+                } catch (InterruptedException e) { // Si el hilo del robot es interrumpido mientras espera, interrumpir el hilo actual y retornar null
                     Thread.currentThread().interrupt();
                     return null;
                 }
@@ -218,46 +217,41 @@ public class Robot extends Thread{
         MoveResult result = null;
         Direction lastDirection = Direction.RIGHT; // Inicializar la última dirección como RIGHT para el primer movimiento
         while(battery > 0){
-            try {
-                Thread.sleep((long)(Math.random() * 1000)); // Esperar un tiempo aleatorio antes de intentar moverse a otra celda
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
             Coord targetPosition = waitUntilTargetAvailable(); // Esperar hasta que haya una caja objetivo disponible para empujar
             if (targetPosition == null) { // Si no hay cajas objetivo disponibles y la producción ha terminado, salir del bucle
                 break;
             }
 
+            // Obtener la dirección en la que el robot debe moverse para empujar la caja objetivo
             Direction nextMoveDirection = directionToPush(snapshot, targetPosition, lastDirection);
 
             if(nextMoveDirection == null){
                 continue; // Si no hay una dirección válida para empujar la caja objetivo, continuar con la siguiente iteración del bucle
             }
 
+            // Si el robot no está detrás de la caja objetivo en la dirección especificada, elegir una dirección para moverse hacia la celda de soporte de la caja objetivo
             if (!isRobotBehindTarget(snapshot, targetPosition, nextMoveDirection)) {
+                // Calcular la coordenada de soporte de la caja objetivo en la dirección opuesta a la dirección de movimiento
                 Coord supportCoord = targetPosition.move(nextMoveDirection.opositeDirection());
 
+                // Elegir la dirección en la que el robot debe moverse para acercarse a la coordenada de soporte de la caja objetivo
                 nextMoveDirection = chooseMoveToward(snapshot, supportCoord, lastDirection);
 
-                if (nextMoveDirection == null) {
+                if (nextMoveDirection == null) { // Si no hay una dirección válida para moverse hacia la coordenada de soporte de la caja objetivo, continuar con la siguiente iteración del bucle
                     continue;
                 }
 
-                lastDirection = nextMoveDirection;
+                lastDirection = nextMoveDirection; // Actualizar la última dirección como la dirección en la que el robot se movió hacia la coordenada de soporte de la caja objetivo
             }
 
+            // Ejecutar el siguiente movimiento del plan de ejecución
             result = board.moveRobot(id, position, nextMoveDirection);
             
-            // Ejecutar el siguiente movimiento del plan de ejecución
             switch(result){
-                // Si el resultado del movimiento es MOVED, PUSHED_TARGET o PUSHED_OBSTACLE, actualizar la posición del robot y decrementar la batería
+                // Si el resultado del movimiento es MOVED, PUSHED_TARGET, PUSHED_OBSTACLE, EXTRACTED_TARGET, actualizar la posición del robot y decrementar la batería
                 case MOVED:
                 case PUSHED_TARGET:
                 case PUSHED_OBSTACLE:
-                    position = position.move(nextMoveDirection);
-                    battery--;
-                    break;
-                // Si el resultado del movimiento es EXTRACTED_TARGET, actualizar la posición del robot, decrementar la batería y vaciar el plan de ejecución
                 case EXTRACTED_TARGET:
                     position = position.move(nextMoveDirection);
                     battery--;
@@ -267,6 +261,7 @@ public class Robot extends Thread{
                     break;
             }
 
+            // Si el resultado del movimiento es EXTRACTED_TARGET y la producción de cajas objetivo ha finalizado, salir del bucle
             if (result == MoveResult.EXTRACTED_TARGET && board.isTargetProductionFinished()) {
                 // El robot ha extraído la última caja objetivo y la producción ha terminado, salir del bucle
                 break;
@@ -274,6 +269,5 @@ public class Robot extends Thread{
         }
         // Una vez que la batería del robot se agota, retirarlo del tablero
         board.removeRobot(id, position, result);
-        System.out.println("Robot " + id + " retirado del tablero.");
     }
 }

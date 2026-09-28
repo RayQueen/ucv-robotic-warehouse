@@ -7,7 +7,6 @@ package dataStructures;
  * PUSHED_TARGET: El robot empujó una caja objetivo a una celda vacía.
  * PUSHED_OBSTACLE: El robot empujó una caja obstáculo a una celda vacía.
  * BLOCKED: El robot no pudo moverse porque la posición de destino está ocupada.
- * STALE_POSITION: El robot no pudo moverse porque la celda de destino quedó ocupada.
  * EXTRACTED_TARGET: El robot extrajo una caja objetivo del tablero.
  * </pr>
  */
@@ -16,6 +15,5 @@ public enum MoveResult {
     PUSHED_TARGET,
     PUSHED_OBSTACLE,
     BLOCKED,
-    STALE_POSITION,
     EXTRACTED_TARGET
 }

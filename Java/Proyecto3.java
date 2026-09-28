@@ -27,27 +27,25 @@ public class Proyecto3{
         // Crear y ejecutar los hilos productores y robots
         List<Thread> threads = new ArrayList<>(); // Lista para almacenar los hilos de productores y robots
 
-        ConveyorBelt[] producers = new ConveyorBelt[arguments[4]];
-        for (int i = 0; i < arguments[4]; i++) {
-            producers[i] = new ConveyorBelt(board, i); // Crear el productor con el identificador
-            threads.add(producers[i]);
-            producers[i].start(); // Iniciar el hilo del productor
-            System.out.println("Productor " + i + " iniciado.");
-        }
-        
         Robot[] robots = new Robot[arguments[2]];
         for (int i = 0; i < arguments[2]; i++) {
             Coord startCoord = board.placeRobot(i); // Colocar el robot en una celda vacia
             robots[i] = new Robot(board, i, startCoord.getX(), startCoord.getY(), arguments[3]); // Crear el robot con la posicion inicial y la bateria
             threads.add(robots[i]);
             robots[i].start(); // Iniciar el hilo del robot
-            System.out.println("Robot " + i + " iniciado en la posicion (" + startCoord.getX() + ", " + startCoord.getY() + ").");
+        }
+
+        ConveyorBelt[] producers = new ConveyorBelt[arguments[4]];
+        for (int i = 0; i < arguments[4]; i++) {
+            producers[i] = new ConveyorBelt(board, i); // Crear el productor con el identificador
+            threads.add(producers[i]);
+            producers[i].start(); // Iniciar el hilo del productor
         }
 
         // Esperar a que todos los hilos terminen
         for (Thread thread : threads) {
             try {
-                thread.join(); // Esperar a que cualquiera de los hilos termine
+                thread.join();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }

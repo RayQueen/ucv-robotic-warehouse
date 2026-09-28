@@ -2,7 +2,6 @@ package criticalResources;
 
 import dataStructures.Event;
 import dataStructures.Coord;
-import dataStructures.Direction;
 
 /**
  * Clase que representa un registrador de eventos.

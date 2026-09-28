@@ -16,6 +16,11 @@ public class Reader {
         this.filePath = filePath;
     }
 
+    /**
+     * Valida los argumentos leídos del archivo de entrada.
+     * @param args Arreglo con los argumentos leídos del archivo.
+     * @return true si los argumentos son válidos, false en caso contrario.
+     */
     public boolean validateArguments(int[] args){
         int sum = 0;
         for (int i = 0; i < args.length; i++){
@@ -27,8 +32,8 @@ public class Reader {
                 sum += args[i];
             }
         }
-        if (sum > 25) { // Verificar que el número total de las entidades no sea mayor que las celdas totales (5x5 = 25)
-            System.err.println("Error: El número total de las entidades es mayor que las celdas totales (25).");
+        if (sum > 36) { // Verificar que el numero total de las entidades no sea mayor que las celdas totales (6x6 = 36)
+            System.err.println("Error: El numero total de las entidades es mayor que las celdas totales (36).");
             return false;
         }
         return true;
@@ -36,7 +41,7 @@ public class Reader {
 
     /**
      * Método que obtiene los argumentos del archivo de entrada y los almacena en un arreglo.
-     * @return Arreglo con los argumentos leídos del archivo con el siguiente orden: [Número de cajas objetivo, Número de cajas obstáculo, Número de robots, Batería inicial de los robots, Número de productores]. Arreglo vacío si los argumentos no son válidos.
+     * @return Arreglo con los argumentos leídos del archivo con el siguiente orden: [Numero de cajas objetivo, Numero de cajas obstáculo, Numero de robots, Batería inicial de los robots, Numero de productores]. Arreglo vacío si los argumentos no son válidos.
      */
     public int[] obtainArguments(){
         List<Integer> values = new ArrayList<>();

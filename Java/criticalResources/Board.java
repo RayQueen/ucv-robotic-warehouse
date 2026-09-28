@@ -13,14 +13,19 @@ import java.util.ArrayList;
  * Clase que representa un tablero de juego con celdas que pueden ser llenadas o vaciadas.
  */
 public class Board{ 
-    private int size;           // Tamaño del tablero (n x n)
+    private int size;               // Tamaño del tablero (n x n)
     private ObjectType[][] board;   // Matriz de objetos que representa el tablero
-    private int emptyCells;     // Contador de celdas vacías
-    private int targetBoxes[];  // Contador de cajas objetivo restantes por producir [0], cajas activas (en el tablero) [1] y cajas extraídas [2]
-    private int obstacleBoxes;  // Contador de cajas obstáculo restantes por producir
-    private int saturationCount;// Contador de saturación del tablero
-    private int robotCount;     // Contador del número total de robots con batería agotada
-    public Logger logger;      // Instancia del registrador de eventos
+    private int emptyCells;         // Contador de celdas vacías
+    private int targetBoxes[];      // Contador de cajas objetivo restantes por producir [0], cajas activas (en el tablero) [1] y cajas extraídas [2]
+    private int obstacleBoxes;      // Contador de cajas obstáculo restantes por producir
+    private int saturationCount;    // Contador de saturación del tablero
+    private int robotCount;         // Contador del número total de robots con batería agotada
+    private int activeRobots;       // Contador del número de robots activos en el tablero
+    private long nextProducerTicket;// Ticket del siguiente productor que puede llenar una celda
+    private long producerTurn;      // Ticket del productor que tiene el turno de llenar una celda
+    private long nextRobotTicket;   // Ticket del siguiente robot que puede moverse
+    private long robotTurn;         // Ticket del robot que tiene el turno de moverse
+    public Logger logger;       // Instancia del registrador de eventos
 
     public Board(int n, int targetBoxes, int obstacleBoxes, Logger logger){
         size = n;
@@ -35,53 +40,95 @@ public class Board{
         this.obstacleBoxes = obstacleBoxes;
         this.saturationCount = 0;
         this.robotCount = 0;
+        this.activeRobots = 0;
+        this.nextProducerTicket = 0;
+        this.producerTurn = 0;
+        this.nextRobotTicket = 0;
+        this.robotTurn = 0;
         this.logger = logger;
     }
 
-    public int getSize(){
+    /**
+     * @return El tamaño del tablero.
+     */
+    public synchronized int getSize(){
         return size;
     }
 
-    public int getEmptyCells(){
+    /**
+     * @return El número de celdas vacías en el tablero.
+     */
+    public synchronized int getEmptyCells(){
         return emptyCells;
     }
 
-    public int getExtractedBoxes(){
+    /**
+     * @return El número de cajas objetivo extraídas del tablero.
+     */
+    public synchronized int getExtractedBoxes(){
         return targetBoxes[2];
     }
 
-    public int getSaturationCount(){
+    /**
+     * @return El número de saturaciones producidas en el tablero.
+     */
+    public synchronized int getSaturationCount(){
         return saturationCount;
     }
 
-    public int getRobotCount(){
+    /**
+     * @return El número de robots que finalizaron por batería agotada.
+     */
+    public synchronized int getRobotCount(){
         return robotCount;
     }
 
-    public synchronized boolean hasActiveTarget() {
-    return targetBoxes[1] > 0;
-}
-
+    /**
+     * Determina si la producción de cajas objetivo ha finalizado.
+     * @return true si ha finalizado, false en caso contrario.
+     */
     public synchronized boolean isTargetProductionFinished() {
-        return targetBoxes[0] == 0 && targetBoxes[1] == 0;
+        return targetBoxes[0] <= 0 && targetBoxes[1] <= 0;
     }
 
+    /**
+     * Determina si la producción total de cajas ha finalizado.
+     * @return true si ha finalizado, false en caso contrario.
+     */
     public synchronized boolean isProductionFinished() {
-        return targetBoxes[0] == 0 && obstacleBoxes == 0;
+        return targetBoxes[0] <= 0 && obstacleBoxes <= 0;
     }
 
-    public synchronized boolean isRobotFinished(int id){
-        if(!hasActiveTarget() && isTargetProductionFinished()){
-            logger.printLog(Event.BATTERY, id, null);
-            return true;
-        }
-        return false;
+    /**
+     * Determina si la producción es imposible debido a la falta de celdas vacías y la ausencia de robots activos.
+     * @return true si la producción es imposible, false en caso contrario.
+     */
+    public synchronized boolean isProductionImpossible() {
+        return !hasEmptyInteriorCell() && activeRobots == 0;
     }
 
+    /**
+     * Determina si es posible producir una caja objetivo.
+     * @return true si es posible producir una caja objetivo, false en caso contrario.
+     */
+    public synchronized boolean canProduceTarget() {
+        return targetBoxes[0] > 0 && hasEmptyInteriorCell();
+    }
+
+    /**
+     * Obtener el tipo de objeto en una celda del tablero.
+     * @param coord La coordenada de la celda.
+     * @return El tipo de objeto en la celda.
+     */
     public synchronized ObjectType getCell(Coord coord){
         return board[coord.getX()][coord.getY()];
     }
 
+    /**
+     * Determina si una celda está vacía.
+     * @param coord La coordenada de la celda.
+     * @return true si la celda está vacía, false en caso contrario.
+     */
     public synchronized boolean isEmpty(Coord coord){
         if(coord.getX() < 0 || coord.getX() >= size || coord.getY() < 0 || coord.getY() >= size){
             return false;
@@ -89,8 +136,54 @@ public class Board{
         return board[coord.getX()][coord.getY()] == ObjectType.EMPTY;
     }
 
+    /**
+     * Determina si una celda es un destino válido para una caja.
+     * @param coord La coordenada de la celda.
+     * @return true si la celda es un destino no irrecuperable, false en caso contrario.
+     */
     private boolean isValidBoxDestination(Coord coord) {
         return coord.getX() > 0 && coord.getX() < size && coord.getY() > 0 && coord.getY() < size && isEmpty(coord);
+    }
+
+    /**
+     * Determina si hay al menos una celda vacía en el interior del tablero (excluyendo los bordes).
+     * @return true si hay al menos una celda vacía en el interior, false en caso contrario.
+     */
+    private boolean hasEmptyInteriorCell() {
+        for (int row = 1; row < size - 1; row++) {
+            for (int column = 1; column < size - 1; column++) {
+                if (board[row][column] == ObjectType.EMPTY) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Encuentra una celda vacía en el interior del tablero (excluyendo los bordes) y devuelve su coordenada.
+     * @param preferred La coordenada preferida para colocar el objeto.
+     * @return La coordenada de la celda vacía encontrada, o null si no hay celdas vacías en el interior.
+     */
+    private Coord findEmptyInteriorCell(Coord preferred) {
+        if (preferred != null
+                && preferred.getX() > 0
+                && preferred.getX() < size - 1
+                && preferred.getY() > 0
+                && preferred.getY() < size - 1
+                && isEmpty(preferred)) {
+            return preferred;
+        }
+
+        for (int row = 1; row < size - 1; row++) {
+            for (int column = 1; column < size - 1; column++) {
+                Coord candidate = new Coord(row, column);
+                if (isEmpty(candidate)) {
+                    return candidate;
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -99,34 +192,72 @@ public class Board{
      * @param id El identificador del productor que está llenando la celda.
      */
     public synchronized void fillCell(Coord coord, int id){
-        // Si no hay celdas vacías y la producción no ha terminado, el productor debe esperar hasta que haya espacio disponible antes de volver a intentar llenar la celda
-        if(emptyCells == 0 && !isProductionFinished()){
-            logger.printLog(Event.WAIT_SAT_PROD, id, coord); // Notifica una unica vez que el productor está esperando debido a saturación del tablero
-            incrementSaturationCount();
-        }
-        while (emptyCells == 0 && !isProductionFinished()) { 
-            try {
+        long ticket = nextProducerTicket++;
+        try {
+            while (ticket != producerTurn
+                    && !isProductionFinished()
+                    && !isProductionImpossible()) {
                 wait();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+            }
+
+            if (isProductionFinished() || isProductionImpossible()) {
+                if (ticket == producerTurn) {
+                    producerTurn++;
+                    notifyAll();
+                }
                 return;
             }
-        }
 
-        // Si hay celdas vacías las cajas objetivo se generan con prioridad para evitar saturar el tablero con cajas obstáculo y permitir que los robots puedan extraer las cajas objetivo
-        ObjectType box = (targetBoxes[0] > 0) ? ObjectType.TARGET_BOX : ObjectType.OBSTACLE_BOX;
-        if(isEmpty(coord)){             // Si la celda seleccionada está vacía, llena la celda con el objeto y actualiza los contadores
-            board[coord.getX()][coord.getY()] = box;
+            while (!hasEmptyInteriorCell()
+                    && !isProductionFinished()
+                    && !isProductionImpossible()) {
+                logger.printLog(Event.WAIT_SAT_PROD, id, coord);
+                incrementSaturationCount();
+                wait();
+            }
+
+            if (isProductionFinished() || isProductionImpossible()) {
+                producerTurn++;
+                notifyAll();
+                return;
+            }
+
+            Coord insertionCoord = findEmptyInteriorCell(coord);
+            if (insertionCoord == null) {
+                producerTurn++;
+                notifyAll();
+                return;
+            }
+
+            ObjectType box;
+            if (targetBoxes[0] > 0) {
+                box = ObjectType.TARGET_BOX;
+            } else if (obstacleBoxes > 0) {
+                box = ObjectType.OBSTACLE_BOX;
+            } else {
+                producerTurn++;
+                notifyAll();
+                return;
+            }
+
+            board[insertionCoord.getX()][insertionCoord.getY()] = box;
             emptyCells--;
             if(box == ObjectType.TARGET_BOX){
                 targetBoxes[0]--;
                 targetBoxes[1]++;
-                logger.printLog(Event.INSERT_OBJ, id, coord);
-                notifyAll(); // Notifica a los robots que hay una caja objetivo activa en el tablero
+                logger.printLog(Event.INSERT_OBJ, id, insertionCoord);
             } else {
                 obstacleBoxes--;
-                logger.printLog(Event.INSERT_OBS, id, coord);
+                logger.printLog(Event.INSERT_OBS, id, insertionCoord);
             }
+            producerTurn++;
+            notifyAll();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            if (ticket == producerTurn) {
+                producerTurn++;
+            }
+            notifyAll();
         }
     }
 
@@ -142,6 +273,7 @@ public class Board{
                 if(isEmpty(coord)){ // Si la celda seleccionada está vacía, coloca el robot en la celda y actualiza el contador de celdas vacías
                     board[coord.getX()][coord.getY()] = ObjectType.ROBOT;
                     emptyCells--;
+                    activeRobots++;
                     placed = true; // Cambia la bandera a true para salir del bucle
                 } else { // Si la celda seleccionada no está vacía, selecciona otra celda aleatoria
                     coord = new Coord((int)(Math.random() * size), (int)(Math.random() * size));
@@ -179,6 +311,7 @@ public class Board{
     public synchronized void removeRobot(int id, Coord coord, MoveResult event){
         if(getCell(coord) == ObjectType.ROBOT){
             emptyCell(coord); // Vacía la celda donde se encuentra el robot
+            activeRobots--;
             if(event != MoveResult.EXTRACTED_TARGET){ // Si el robot no extrajo una caja objetivo, se considera que su batería se agotó y se incrementa el contador de robots con batería agotada
                 logger.printLog(Event.BATTERY, id, coord);
                 incrementRobotCount(); // Incrementa el contador de robots con batería agotada
@@ -279,19 +412,37 @@ public class Board{
      * @return El resultado del movimiento.
      */
     public synchronized MoveResult moveRobot(int id, Coord coord, Direction direction){
-        Coord newCoord = coord.move(direction);
-        if(isEmpty(newCoord)){ // Si la nueva coordenada está vacía, el robot puede moverse
-            return moveCell(id, coord, direction); // Llama a moveCell para mover el robot a la nueva coordenada
-        } else {
-            Coord pushedBoxDestination = newCoord.move(direction);
-            if(isValidBoxDestination(pushedBoxDestination) && getCell(newCoord) != ObjectType.ROBOT){ // Si la nueva coordenada inicial no esta ocupada por otro robot y la siguiente es válida, el robot puede empujar la caja a la nueva coordenada
-                MoveResult result = moveCell(id, newCoord, direction); // Llama a moveCell para mover la caja a la nueva coordenada
-                board[newCoord.getX()][newCoord.getY()] = ObjectType.ROBOT; // Mueve el robot a la nueva coordenada sin generar un registro de movimiento del robot, ya que el registro de movimiento de la caja ya incluye el movimiento del robot
-                board[coord.getX()][coord.getY()] = ObjectType.EMPTY; // Vacía la celda original
-                return result; // Devuelve el resultado del movimiento de la caja
-            } else {
-                return MoveResult.BLOCKED; // Si la nueva coordenada no está vacía, el robot no puede moverse
+        long ticket = nextRobotTicket++;
+        try {
+            while (ticket != robotTurn) {
+                wait();
             }
+
+            Coord newCoord = coord.move(direction);
+            MoveResult result;
+            if(isEmpty(newCoord)){ // Si la nueva coordenada está vacía, el robot puede moverse
+                result = moveCell(id, coord, direction);
+            } else {
+                Coord pushedBoxDestination = newCoord.move(direction);
+                if(isValidBoxDestination(pushedBoxDestination) && getCell(newCoord) != ObjectType.ROBOT){
+                    result = moveCell(id, newCoord, direction);
+                    board[newCoord.getX()][newCoord.getY()] = ObjectType.ROBOT;
+                    board[coord.getX()][coord.getY()] = ObjectType.EMPTY;
+                } else {
+                    result = MoveResult.BLOCKED;
+                }
+            }
+
+            robotTurn++;
+            notifyAll();
+            return result;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            if (ticket == robotTurn) {
+                robotTurn++;
+                notifyAll();
+            }
+            return MoveResult.BLOCKED;
         }
     }
 
