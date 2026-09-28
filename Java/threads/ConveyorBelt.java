@@ -16,22 +16,19 @@ public class ConveyorBelt extends Thread{
     }
 
     public void run(){
-        while(board.getRemainingBoxes() > 0){
+        while(!board.isProductionFinished()){ // Mientras la producción no haya terminado
             try {
                 Thread.sleep((long)(Math.random() * 1000)); // Esperar un tiempo aleatorio antes de intentar llenar otra celda
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            // Generar una coordenada aleatoria dentro del tablero que no se encuentre en la fila 1, columna 1, o posición (5,5)
-            Coord coord = new Coord((int)(Math.random() * board.getSize()), (int)(Math.random() * board.getSize()));
-            if(coord.getX() == 0 || coord.getY() == 0){
-                continue; // Si la coordenada es (0,y) o (x,0), generar otra
-            }
-            if(coord.getX() == 5 && coord.getY() == 5){
-                continue; // Si la coordenada es (5,5), generar otra
-            }
+            // Generar una coordenada aleatoria dentro del tablero que no se encuentre en los bordes
+            int interiorSize = board.getSize() - 2;
+            Coord coord = new Coord(1 + (int) (Math.random() * interiorSize), 1 + (int) (Math.random() * interiorSize)
+            );
             board.fillCell(coord, id);
         }
+        System.out.println("Productor " + id + " ha terminado de producir.");
     }
 }
 

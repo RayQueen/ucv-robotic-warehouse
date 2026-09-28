@@ -1,4 +1,4 @@
 // ignore testing files
 testing-script.*
-*/test
+test/*
 /lib

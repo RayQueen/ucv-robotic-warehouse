@@ -20,12 +20,17 @@ public class Coord{
         return y;
     }
 
-    public void setX(int x){
-        this.x = x;
+    @Override
+    public boolean equals(Object obj){
+        if(this == obj) return true;
+        if(obj == null || getClass() != obj.getClass()) return false;
+        Coord coord = (Coord) obj;
+        return x == coord.x && y == coord.y;
     }
 
-    public void setY(int y){
-        this.y = y;
+    @Override
+    public int hashCode(){
+        return java.util.Objects.hash(x, y);
     }
 
     /**
@@ -66,5 +71,14 @@ public class Coord{
             default:
                 return this;
         }
+    }
+
+    /**
+     * Calcula la distancia de Manhattan entre esta coordenada y otra coordenada.
+     * @param other La otra coordenada con la que se calculará la distancia.
+     * @return La distancia de Manhattan entre las dos coordenadas.
+     */
+    public int distanceTo(Coord other){
+        return Math.abs(this.x - other.x) + Math.abs(this.y - other.y);
     }
 }

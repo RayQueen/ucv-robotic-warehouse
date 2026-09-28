@@ -63,9 +63,8 @@ public class Logger{
      * @param id El identificador del productor o robot.
      * @param coord1 La primera coordenada asociada al evento.
      * @param coord2 La segunda coordenada asociada al evento.
-     * @param direction La dirección asociada al evento.
      */
-    public void printLog(Event event, int id, Coord coord1, Coord coord2, Direction direction){
+    public void printLog(Event event, int id, Coord coord1, Coord coord2){
         String message = "";
         switch(event){
             case MOVE:
