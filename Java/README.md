@@ -124,7 +124,7 @@ Cada `Robot` es un hilo que intenta llevar cajas objetivos desde su ubicación e
 
 7. **Actualización en función del resultado**: Una vez obtenido el resultado del movimiento, si este fue exitoso (`MOVE`, `PUSH_OBJ`, `PUSH_OBS`, `EXTRACTED_TARGET`) se actualiza la posición del robot y se decrementa en 1 la batería. En caso contrario (`BLOCKED`) no se realizan actualizaciones y sólo se procede con la siguiente iteración.
 
-8. **Terminar por extracción**: En caso de que el resultado del último movimiento haya sido `EXTRACTED_TARGET` se verifica si aún quedan cajas objetivo en el tablero o por producir, si esto se cumple, el hilo sigue iterando desde el paso 1. En caso contrario termina su ejecucíon.
+8. **Terminar por extracción**: En caso de que el resultado del último movimiento haya sido `EXTRACTED_TARGET` se verifica si aún quedan cajas objetivo en el tablero o por producir, si esto se cumple, el hilo espera un tiempo aleatorio y sigue iterando desde el paso 1. En caso contrario termina su ejecucíon.
 
 9. **Finalización**: En caso de cumplirse alguna de las condiciones para terminar la ejecución del hilo se llama a la función `removeRobot()` que se encarga de eliminar el objeto correspondiente al Robot del tablero y en caso de haber terminado por falta de batería emite una entrada en el log describiendo este hecho.
 

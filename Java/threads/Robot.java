@@ -266,6 +266,13 @@ public class Robot extends Thread{
                 // El robot ha extraído la última caja objetivo y la producción ha terminado, salir del bucle
                 break;
             }
+
+            try {
+                Thread.sleep((long)(Math.random() * 1000)); // Esperar un tiempo aleatorio antes de intentar llenar otra celda
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
         }
         // Una vez que la batería del robot se agota, retirarlo del tablero
         board.removeRobot(id, position, result);
