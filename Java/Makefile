@@ -25,4 +25,4 @@ run: $(CLASSES)
 
 # Regla para limpiar los archivos compilados
 clean:
-	$(RM) *.class
+	$(RM) criticalResources/*.class dataStructures/*.class threads/*.class Proyecto3.class

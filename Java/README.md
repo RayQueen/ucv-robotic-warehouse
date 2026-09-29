@@ -158,19 +158,21 @@ El registro permite reconstruir el orden observable de las acciones concurrentes
 
 ## Guía de ejecución
 
-Desde la raíz del proyecto, compilar todas las clases Java:
+Desde la raíz del proyecto, en una terminal que soporte make, utilizar:
 
-```powershell
-javac Java\Proyecto3.java Java\criticalResources\*.java Java\dataStructures\*.java Java\threads\*.java
+#### Para compilar y ejecutar
+
+```make
+make run ARGS='<nombre del archivo>.txt'
 ```
 
-Ejecutar el programa proporcionando el archivo de configuración:
+#### Para eliminar todas las clases compiladas, volver a compilar y ejecutar
 
-```powershell
-java -cp Java Proyecto3 test\<nombre_del_archivo>.txt
+```make
+make ARGS='<nombre del archivo>.txt'
 ```
 
-El archivo debe contener las etiquetas y valores separados por comas en el formato:
+El archivo pasado como argumento debe contener las etiquetas y valores separados por comas en el formato:
 
 ```text
 Cajas_Objetivo_Iniciales, <número de cajas objetivo>
